@@ -8,8 +8,9 @@ This document describes the high level design of PFC watchdog by hardware on Bro
 ##### Table 1  Definitions
 |Definitions/Abbreviation|Description|
 |----|----|
-|PFC_WD SW|PFC watchdog detection and recovery implemented by software, such as ACL or ZeroBuffer|
+|PFC_WD SW|PFC watchdog detection and recovery implemented by software, such as ACL.|
 |PFC_WD HW|PFC watchdog  detection and recovery implemented by hardware|
+|TC| Traffic class|
 
 # Introduction
 PFC watchdog is designed to detect and mitigate PFC storm received for each port.
@@ -49,7 +50,13 @@ There are two options to drop packets at ingress stage
 ### Egress drop
 To drop packet at EGRESS stage, we are going to set `SAI_QUEUE_ATTR_PFC_DLR_INIT` to `true`.
 ```cpp
+// Step1: Set the recovery action to 'DROP'
 sai_attribute_t attr;
+attr.id = SAI_SWITCH_ATTR_PFC_DLR_PACKET_ACTION;
+attr.value.s32 = SAI_PACKET_ACTION_DROP;
+status = sai_switch_api->set_switch_attribute(switch_id, 1, attr);
+
+// Step2: Start PFC recovery
 attr.id = SAI_QUEUE_ATTR_PFC_DLR_INIT;
 attr.value.bool = true;
 status = sai_queue_api->set_queue_attribute(oid, 1, attr);
@@ -57,11 +64,13 @@ status = sai_queue_api->set_queue_attribute(oid, 1, attr);
 ## PFC storm recovery
 We need to set `SAI_QUEUE_ATTR_PFC_DLR_INIT` to `false` to restore queue from deadlock/storm state.
 ```cpp
+// Stop PFC recovery
 sai_attribute_t attr;
 attr.id = SAI_QUEUE_ATTR_PFC_DLR_INIT;
 attr.value.bool = false;
 status = sai_queue_api->set_queue_attribute(oid, 1, attr);
 ```
+The attribute `SAI_QUEUE_ATTR_PFC_DLR_INIT` is supported from BCM SAI 4.3.
 
 # Questions
 1. Why can we only have up 2 software watchdog? Is there any other limitations besides TCAM?
