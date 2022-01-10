@@ -1,4 +1,4 @@
-# PFC Watchdog by hardware\
+# PFC Watchdog by hardware
 # Table of Content
 # List of Tables
 # About this Manual
@@ -35,8 +35,39 @@ Limited by TCAM resources, we are not able to add another PFC watchdog since ano
 
 ![Lossless queues for Gemini](./pfc_1.png "Lossless queues between Active ToR and Standby Tor")
 
+# Design
+## PFC storm detection
+The hardware PFC watchdog will reuse current mechanism to detect PFC storm.
+## PFC storm mitigation
+We need to drop packets at both INGRESS and EGRESS stage to mitigate PFC storm.
+### Ingress drop
+There are two options to drop packets at ingress stage
+
+* Option 1 Reuse the ingress ACL table for software watchdog
+* Option 2 Set zero profile to the priority group
+
+### Egress drop
+To drop packet at EGRESS stage, we are going to set `SAI_QUEUE_ATTR_PFC_DLR_INIT` to `true`.
+```cpp
+sai_attribute_t attr;
+attr.id = SAI_QUEUE_ATTR_PFC_DLR_INIT;
+attr.value.bool = true;
+status = sai_queue_api->set_queue_attribute(oid, 1, attr);
+```
+## PFC storm recovery
+We need to set `SAI_QUEUE_ATTR_PFC_DLR_INIT` to `false` to restore queue from deadlock/storm state.
+```cpp
+sai_attribute_t attr;
+attr.id = SAI_QUEUE_ATTR_PFC_DLR_INIT;
+attr.value.bool = false;
+status = sai_queue_api->set_queue_attribute(oid, 1, attr);
+```
 
 # Questions
 1. Why can we only have up 2 software watchdog? Is there any other limitations besides TCAM?
-2. Read & clear counter
-3. 
+2. Read & clear counters
+3. The new lossless queue will share buffer with existing queues, so actually it still take resources from other queues. 
+4. How is the tunnel traffic mapped to the new lossless queue?
+
+# TODOs
+1. Confirm packet at EGRESS stage will be dropped when `SAI_QUEUE_ATTR_PFC_DLR_INIT = true`
